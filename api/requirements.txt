@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+sqlalchemy
+loguru
+orjson
+python-dotenv
+flake8
+mypy
+passlib
+bcrypt
+PyJWT
