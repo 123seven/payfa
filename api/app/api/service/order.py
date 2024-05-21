@@ -15,6 +15,7 @@ from app.schemas.api.common import (
     NotifySchema,
     SignSchema,
 )
+from decimal import Decimal
 
 
 class OrderServices:
@@ -31,10 +32,7 @@ class OrderServices:
     @classmethod
     def check_sign(cls, sign_data: SignSchema):
         print("data:", sign_data)
-        logger.error(
-            "{data}",
-            data=sign_data
-        )
+        logger.error("{data}", data=sign_data)
         # 按照键名排序并生成键值对列表
         pairs = [f"{k}={v}" for k, v in sorted(sign_data.dict().items()) if k != "sign"]
 
@@ -65,7 +63,7 @@ class OrderServices:
             .first()
         )
         if last_order:
-            data.price = last_order.price + 0.01
+            data.price = last_order.price + Decimal(0.01)
 
         order = Order(
             order_number=self._create_order_id(),
@@ -74,7 +72,12 @@ class OrderServices:
         )
         self.session.add(order)
         self.session.commit()
-        return SuccessResult(data=order)
+        data = {
+            **order.to_dict(),
+            "pay_url": "",
+        }
+
+        return SuccessResult(data=data)
 
     async def status(self, data: CheckOrderSchema):
         order: Order = (
@@ -85,6 +88,14 @@ class OrderServices:
             .first()
         )
         return SuccessResult(data=order)
+
+    def check_wechat_msg(self, msg: str):
+        if "微信支付" not in msg:
+            return "error"
+
+    def check_alipay_msg(self, msg: str):
+        if "支付宝" not in msg:
+            return "error"
 
     async def notify(self, data: NotifySchema):
         self.check_sign(data)

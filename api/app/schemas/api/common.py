@@ -32,7 +32,9 @@ class SignSchema(BaseModel):
 
 class CreateOrderSchema(SignSchema):
     price: float = Field(default=0, ge=0, description="订单金额")
-    payment_method: PaymentMethod = Field(default=PaymentMethod.WECHAT_PAY, description="支付方式")
+    payment_method: PaymentMethod = Field(
+        default=PaymentMethod.WECHAT_PAY, description="支付方式"
+    )
     notify_url: str = Field(None, max_length=255, null=True, description="回调地址")
 
 
@@ -42,6 +44,7 @@ class CheckOrderSchema(SignSchema):
 
 class NotifySchema(SignSchema):
     msg: str
+    type: str
 
 
 class AdminFiltersSchema(BaseModel):
