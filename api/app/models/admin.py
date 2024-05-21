@@ -18,7 +18,7 @@ class Admin(BaseModel):
 
     id = Column(Integer, primary_key=True, index=True)
 
-    account = Column(String(32),  nullable=False, doc="管理员账号")
+    account = Column(String(32), nullable=False, doc="管理员账号")
     password = Column(String(128), nullable=False, doc="密码")
 
     nickname = Column(String(32), nullable=True, doc="管理员昵称")

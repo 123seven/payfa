@@ -2,7 +2,7 @@ import datetime
 from enum import IntEnum
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 # __all__ = [
@@ -31,9 +31,9 @@ class SignSchema(BaseModel):
 
 
 class CreateOrderSchema(SignSchema):
-    price: float
-    payment_method: PaymentMethod = Field(default=PaymentMethod.WECHAT_PAY)
-    notify_url: str
+    price: float = Field(default=0, ge=0, description="订单金额")
+    payment_method: PaymentMethod = Field(default=PaymentMethod.WECHAT_PAY, description="支付方式")
+    notify_url: str = Field(None, max_length=255, null=True, description="回调地址")
 
 
 class CheckOrderSchema(SignSchema):
@@ -79,5 +79,4 @@ class AdminInfoSchema(BaseModel):
     created_at: datetime.datetime = Field(None, doc="创建时间")
     updated_at: datetime.datetime = Field(None, doc="更新时间")
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(extra="ignore", from_attributes=True)

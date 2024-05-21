@@ -1,11 +1,12 @@
-# FastAPI CBV https://github.com/dmontagu/fastapi-utils/blob/master/fastapi_utils/cbv.py
-
+from __future__ import annotations
 
 import inspect
-from typing import Any, Callable, List, Type, TypeVar, Union, get_type_hints
+from collections.abc import Callable
+from typing import Any, TypeVar, get_type_hints
 
 from fastapi import APIRouter, Depends
-from pydantic.typing import is_classvar
+from pydantic.v1.typing import is_classvar
+
 from starlette.routing import Route, WebSocketRoute
 
 T = TypeVar("T")
@@ -13,22 +14,33 @@ T = TypeVar("T")
 CBV_CLASS_KEY = "__cbv_class__"
 
 
-def cbv(router: APIRouter) -> Callable[[Type[T]], Type[T]]:
+def cbv(router: APIRouter) -> Callable[[type[T]], type[T]]:
     """
+    This function returns a decorator that converts the decorated into a class-based view for the provided router.
+
+    Any methods of the decorated class that are decorated as endpoints using the router provided to this function
+    will become endpoints in the router. The first positional argument to the methods (typically `self`)
+    will be populated with an instance created using FastAPI's dependency-injection.
+
+    For more detail, review the documentation at
     https://fastapi-utils.davidmontague.xyz/user-guide/class-based-views/#the-cbv-decorator
     """
 
-    def decorator(cls: Type[T]) -> Type[T]:
+    def decorator(cls: type[T]) -> type[T]:
         return _cbv(router, cls)
 
     return decorator
 
 
-def _cbv(router: APIRouter, cls: Type[T]) -> Type[T]:
+def _cbv(router: APIRouter, cls: type[T]) -> type[T]:
+    """
+    Replaces any methods of the provided class `cls` that are endpoints of routes in `router` with updated
+    function calls that will properly inject an instance of `cls`.
+    """
     _init_cbv(cls)
     cbv_router = APIRouter()
     function_members = inspect.getmembers(cls, inspect.isfunction)
-    functions_set = set(func for _, func in function_members)
+    functions_set = {func for _, func in function_members}
     cbv_routes = [
         route
         for route in router.routes
@@ -43,7 +55,12 @@ def _cbv(router: APIRouter, cls: Type[T]) -> Type[T]:
     return cls
 
 
-def _init_cbv(cls: Type[Any]) -> None:
+def _init_cbv(cls: type[Any]) -> None:
+    """
+    Idempotently modifies the provided `cls`, performing the following modifications:
+    * The `__init__` function is updated to set any class-annotated dependencies as instance attributes
+    * The `__signature__` attribute is updated to indicate to FastAPI what arguments should be passed to the initializer
+    """
     if getattr(cls, CBV_CLASS_KEY, False):  # pragma: no cover
         return  # Already initialized
     old_init: Callable[..., Any] = cls.__init__
@@ -57,7 +74,7 @@ def _init_cbv(cls: Type[Any]) -> None:
         if x.kind
         not in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
     ]
-    dependency_names: List[str] = []
+    dependency_names: list[str] = []
     for name, hint in get_type_hints(cls).items():
         if is_classvar(hint):
             continue
@@ -68,7 +85,7 @@ def _init_cbv(cls: Type[Any]) -> None:
                 name=name,
                 kind=inspect.Parameter.KEYWORD_ONLY,
                 annotation=hint,
-                **parameter_kwargs
+                **parameter_kwargs,
             )
         )
     new_signature = old_signature.replace(parameters=new_parameters)
@@ -85,11 +102,14 @@ def _init_cbv(cls: Type[Any]) -> None:
 
 
 def _update_cbv_route_endpoint_signature(
-    cls: Type[Any], route: Union[Route, WebSocketRoute]
+    cls: type[Any], route: Route | WebSocketRoute
 ) -> None:
+    """
+    Fixes the endpoint signature for a cbv route to ensure FastAPI performs dependency injection properly.
+    """
     old_endpoint = route.endpoint
     old_signature = inspect.signature(old_endpoint)
-    old_parameters: List[inspect.Parameter] = list(old_signature.parameters.values())
+    old_parameters: list[inspect.Parameter] = list(old_signature.parameters.values())
     old_first_parameter = old_parameters[0]
     new_first_parameter = old_first_parameter.replace(default=Depends(cls))
     new_parameters = [new_first_parameter] + [
