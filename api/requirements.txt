@@ -1,12 +1,11 @@
 fastapi
 uvicorn
 sqlalchemy
+pydantic
 loguru
 orjson
-python-dotenv
-flake8
-mypy
+pyyaml==6.0.1
+pydantic_settings==2.2.1
 passlib
 bcrypt
 PyJWT
-pydantic_settings

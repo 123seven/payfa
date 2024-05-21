@@ -3,6 +3,7 @@ import random
 import re
 
 from fastapi import BackgroundTasks
+from loguru import logger
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -29,6 +30,11 @@ class OrderServices:
 
     @classmethod
     def check_sign(cls, sign_data: SignSchema):
+        print("data:", sign_data)
+        logger.error(
+            "{data}",
+            data=sign_data
+        )
         # 按照键名排序并生成键值对列表
         pairs = [f"{k}={v}" for k, v in sorted(sign_data.dict().items()) if k != "sign"]
 
