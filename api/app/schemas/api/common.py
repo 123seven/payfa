@@ -25,6 +25,25 @@ class PaymentMethod(IntEnum):
     ALI_PAY = 1
 
 
+class ApiKeySchema(BaseModel):
+    name: str = Field("", max_length=32, description="名称")
+    remark: str = Field("", max_length=255, description="备注")
+
+
+class ApiKeyFiltersSchema(BaseModel):
+    name: Optional[str]
+
+
+class ApiKeyInfoSchema(BaseModel):
+    id: int
+    name: str
+    ak: str
+    created_at: datetime.datetime
+    updated_at: datetime.datetime
+
+    model_config = ConfigDict(extra="ignore", from_attributes=True)
+
+
 class SignSchema(BaseModel):
     ak: str
     sign: str
@@ -45,6 +64,7 @@ class CheckOrderSchema(SignSchema):
 class NotifySchema(SignSchema):
     msg: str
     type: str
+    timestamp: int
 
 
 class AdminFiltersSchema(BaseModel):

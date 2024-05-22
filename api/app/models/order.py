@@ -20,6 +20,7 @@ class Order(BaseModel):
     update_time = Column(DateTime, onupdate=datetime.now, default=datetime.now)
 
     notify_url = Column(String, index=True, doc="回调地址")
+    api_key_id = Column(Integer, nullable=False, doc="api_key_id")
 
 
 class ApiKey(BaseModel):
@@ -32,6 +33,3 @@ class ApiKey(BaseModel):
     # 用于加密认证字符串和用来验证认证字符串的密钥
     sk = Column(String, nullable=False, doc="Secret Key")
     remark = Column(String, default="", doc="备注")
-
-    create_time = Column(DateTime, default=datetime.now)
-    update_time = Column(DateTime, onupdate=datetime.now, default=datetime.now)
