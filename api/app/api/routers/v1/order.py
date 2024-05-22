@@ -24,7 +24,7 @@ class OrderViewApi:
         return await self.service.create(data)
 
     @router.get("/check", response_model=ResponseModel)
-    async def check(self, data: CheckOrderSchema):
+    async def check(self, data: CheckOrderSchema = Depends()):
         return await self.service.status(data)
 
     @router.post("/notify")

@@ -66,6 +66,62 @@ class OrderServices:
             raise ServiceException(message="api key not found")
         return api_key
 
+    def check_wechat_msg(self, msg: str):
+        if "微信支付" not in msg:
+            return "error"
+
+    def check_alipay_msg(self, msg: str):
+        if "支付宝" not in msg:
+            return "error"
+
+    @classmethod
+    def get_notify_data(cls, order: Order, api_key: ApiKey):
+        notify_data = {
+            "ak": api_key.ak,
+            "pay_id": order.order_number,
+            "pay_type": order.payment_method,
+            "price": float(order.price),
+            "status": order.status,
+            "really_price": float(order.amount or 0.00),
+        }
+
+        # 字典序排序拼接签名字符串
+        sorted_keys = sorted(notify_data.keys())
+        signature_str = "".join([f"{key}={notify_data[key]}" for key in sorted_keys])
+        signature = hmac.new(
+            api_key.sk.encode(), signature_str.encode(), hashlib.sha256
+        ).hexdigest()
+        notify_data.setdefault("sign", signature)
+        return notify_data
+
+    def notify_platform(self, order: Order, api_key: ApiKey):
+        notify_data = self.get_notify_data(order, api_key)
+
+        def _notify():
+            logger.info(
+                "callback notify_url:{notify_url} data:{data}",
+                notify_url=order.notify_url,
+                data=notify_data,
+            )
+            resp = requests.post(order.notify_url, json=notify_data)
+            logger.info("{resp}", resp=resp)
+
+        self.tasks.add_task(_notify)
+
+    @classmethod
+    def check_app_sign(cls, sign_data: SignSchema, api_key: ApiKey):
+        secret_enc = api_key.sk.encode("utf-8")
+        string_to_sign = "{}\n{}".format(sign_data.timestamp, api_key.sk)
+        string_to_sign_enc = string_to_sign.encode("utf-8")
+        hmac_code = hmac.new(
+            secret_enc,
+            string_to_sign_enc,
+            digestmod=hashlib.sha256,
+        ).digest()
+        sign = urllib.parse.quote_plus(base64.b64encode(hmac_code))
+        if sign != sign_data.sign:
+            raise ServiceException(message="sign error")
+
     async def create(self, data: CreateOrderSchema):
         api_key = self.get_api_key(data.ak)
         self.check_sign(data, api_key)
@@ -98,12 +154,15 @@ class OrderServices:
         self.session.commit()
         data = {
             **order.to_dict(),
-            "pay_url": "",
+            "pay_url": "wxp://f2f0Xnx4R64AMbmkE8lqUYRav2QNO2vqx1e7tdiFG7wQ4DWaJwyuiwGvWs-tUOIc8vyl",
         }
 
         return SuccessResult(data=data)
 
     async def status(self, data: CheckOrderSchema):
+        api_key = self.get_api_key(data.ak)
+        self.check_sign(data, api_key)
+
         order: Order = (
             self.session.query(Order)
             .filter(
@@ -111,57 +170,8 @@ class OrderServices:
             )
             .first()
         )
-        return SuccessResult(data=order)
-
-    def check_wechat_msg(self, msg: str):
-        if "微信支付" not in msg:
-            return "error"
-
-    def check_alipay_msg(self, msg: str):
-        if "支付宝" not in msg:
-            return "error"
-
-    def notify_platform(self, order: Order, api_key: ApiKey):
-        notify_data = {
-            "ak": api_key.ak,
-            "pay_id": order.order_number,
-            "pay_type": order.payment_method,
-            "price": float(order.price),
-            "really_price": float(order.amount),
-        }
-
-        # 字典序排序拼接签名字符串
-        sorted_keys = sorted(notify_data.keys())
-        signature_str = "".join([f"{key}={notify_data[key]}" for key in sorted_keys])
-        signature = hmac.new(
-            api_key.sk.encode(), signature_str.encode(), hashlib.sha256
-        ).hexdigest()
-        notify_data.setdefault("sign", signature)
-
-        def _notify():
-            logger.info(
-                "callback notify_url:{notify_url} data:{data}",
-                notify_url=order.notify_url,
-                data=notify_data,
-            )
-            resp = requests.post(order.notify_url, json=notify_data)
-            logger.info("{resp}", resp=resp)
-
-        self.tasks.add_task(_notify)
-
-    @classmethod
-    def check_app_sign(cls, sign_data: SignSchema, api_key: ApiKey):
-        secret_enc = api_key.sk.encode("utf-8")
-        string_to_sign = "{}\n{}".format(sign_data.timestamp, api_key.sk)
-        string_to_sign_enc = string_to_sign.encode("utf-8")
-        hmac_code = hmac.new(
-            secret_enc,
-            string_to_sign_enc,
-            digestmod=hashlib.sha256,
-        ).digest()
-        sign = urllib.parse.quote_plus(base64.b64encode(hmac_code))
-        if sign != sign_data.sign:
-            raise ServiceException(message="sign error")
+        notify_data = self.get_notify_data(order, api_key)
+        return SuccessResult(data=notify_data)
 
     async def notify(self, data: NotifySchema):
         logger.info("notify data:{data}", data=data)
@@ -190,6 +200,7 @@ class OrderServices:
 
         order.amount = amount
         order.pay_time = datetime.datetime.now()
+        order.status = 1
         self.session.merge(order)
         self.session.commit()
 
